@@ -1,5 +1,4 @@
 # --- Importar as bibliotecas --- #
-from typing import List, Tuple
 from langchain.agents import AgentExecutor
 from langchain.tools import WikipediaQueryRun
 from langchain_community.vectorstores import FAISS
@@ -9,7 +8,6 @@ from langchain_core.prompts import MessagesPlaceholder
 from langchain_cohere import create_cohere_react_agent
 from langchain_community.embeddings import CohereEmbeddings
 from langchain_community.document_loaders import PyPDFLoader
-from langchain_core.messages import HumanMessage, AIMessage
 from langchain.tools.retriever import create_retriever_tool
 from langchain_community.utilities import WikipediaAPIWrapper
 from langchain.chains.retrieval import create_retrieval_chain
@@ -79,7 +77,7 @@ class BioChat:
         # --- Criar o template para o contextualizar o chat --- #
         template = ChatPromptTemplate.from_messages(
             [
-                ("system", "Você é um profissional de bioinformática com didática excepcional, proativo e muito antencioso. Responda apenas perguntas de bioinformática e programação. Responda para leigos. Answer the user's questions based on the below context:\n\n{context}"),
+                ("system", "Você é um profissional de bioinformática com didática excepcional, proativo e muito antencioso. Faça respostas completas, focando em leigos. Responda apenas perguntas de bioinformática e programação. Responda para leigos. Utilize a apostila de bioinformática apenas em extrema necessidade, procure antes na internet. Utilize em todas as suas respostas markdown em suas respostas para destacar, com negrito, palavras-chave importantes e fazer títulos. Se o usuário pedir, faça códigos de linguagem de programação seguindo as boas práticas da programação, encontre sempre uma oportunidade de mostrar um exemplo de código, mas sinalize que, como uma IA, é importante que não confiem completamente em seu código. Dê exemplos reais de todos os arquivos e linguagens de programação solicitados. Para perguntas fora do escopo de bioinformática, desculpe-se ao usuário e não responda a pergunta. Answer the user's questions based on the below context:\n\n{context}"),
                 MessagesPlaceholder(variable_name="chat_history"),
                 ("user", "{input}")
             ]
@@ -96,22 +94,6 @@ class BioChat:
 
         return cadeia_documento, retriever, template
 
-    def historico_retriever(self):
-        """
-        Função responsável por criar o retriever com o histórico.
-        :return:
-        """
-        # --- Separar as variáveis --- #
-        cadeia_documento = self.criar_retriever()[0]
-        retriever = self.criar_retriever()[1]
-        template = self.criar_retriever()[2]
-
-        # --- Criar histórico do retriever --- #
-        historico = create_history_aware_retriever(self.api_chat, retriever, template)
-
-        # --- Criar a cadeia do retriever --- #
-        cadeia_retriever = create_retrieval_chain(historico, cadeia_documento)
-
     def criar_ferramenta_retriever(self):
         """
         Função responsável por criar a ferramenta do retriever para o agente.
@@ -124,7 +106,7 @@ class BioChat:
         ferramenta = create_retriever_tool(
             retriever,
             "bioinfo_search",
-            "Apostila de Bioinformática. Contém informações de ferramentas e conceitos básicos de bioinformática. Utilize-o para procurar sobre Genbank, Fasta, Bioedit, Phylogeny.fr, Artemis, Artemis Comparission Tool, ORF Finder, NCBI, UniProt, PDB"
+            "Apostila de Bioinformática. Contém informações de ferramentas e conceitos básicos de bioinformática. Utilize-o para procurar sobre Genbank, Fasta, Bioedit, Phylogeny.fr, Artemis, Artemis Comparission Tool, ORF Finder, NCBI, UniProt, PDB",
         )
 
         return ferramenta
@@ -138,8 +120,11 @@ class BioChat:
         ferramenta = self.criar_ferramenta_retriever()
 
         # --- Criar o template do agente --- #
-        template_agente = ChatPromptTemplate.from_template('{input}')
-
+        template_agente = ChatPromptTemplate.from_messages([
+            ("system",
+             "Seu nome é BioChat. Você é um profissional de bioinformática com didática excepcional, proativo e muito antencioso. Faça respostas completas, focando em leigos. Responda apenas perguntas de bioinformática e programação. Utilize a apostila de bioinformática apenas em extrema necessidade. Utilize em todas as suas respostas markdown em suas respostas para destacar, com negrito, palavras-chave importantes e fazer títulos. Divida os parágrafos com novas linhas, quando der exemplo de códigos faça uma nova linha antes de começar o exemplo e depois de terminá-lo e preserve as quebras de linha necessárias ao longo do código, mantendo sua legibilidade e compreensão. Se o usuário pedir, faça códigos de linguagem de programação seguindo as boas práticas da programação, encontre sempre uma oportunidade de mostrar um exemplo de código, mas sinalize que, como uma IA, é importante que não confiem completamente em seu código. Sempre dê exemplos reais de todos os arquivos e linguagens de programação solicitados. Para perguntas fora do escopo de bioinformática, desculpe-se ao usuário e não responda a pergunta"),
+            ("user", "{input}")
+        ])
         # --- Criar o agente --- #
         agente = create_cohere_react_agent(
             self.api_chat,
